@@ -1,6 +1,7 @@
 #include <iostream>
 #include <chrono>
 #include <cv.h>
+#include <opencv2/opencv.hpp>
 #include <opencv2/core/core.hpp>
 #include <opencv2/core/utility.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -67,22 +68,22 @@ void ExtractLineSegment(const Mat &img, const Mat &image2, vector<KeyLine> &keyl
     cout<<"extract lsd line segments"<<endl;
     lsd->detect(img, keylines, 1.2,1);
     lsd->detect(image2,keylines2,1.2,1);
-    int lsdNFeatures = 50;
-    cout<<"filter lines"<<endl;
-    if(keylines.size()>lsdNFeatures)
-    {
-        sort(keylines.begin(), keylines.end(), sort_lines_by_response());
-        keylines.resize(lsdNFeatures);
-        for( int i=0; i<lsdNFeatures; i++)
-            keylines[i].class_id = i;
-    }
-    if(keylines2.size()>lsdNFeatures)
-    {
-        sort(keylines2.begin(), keylines2.end(), sort_lines_by_response());
-        keylines2.resize(lsdNFeatures);
-        for(int i=0; i<lsdNFeatures; i++)
-            keylines2[i].class_id = i;
-    }
+//    int lsdNFeatures = 1000;
+//    cout<<"filter lines"<<endl;
+//    if(keylines.size()>lsdNFeatures)
+//    {
+//        sort(keylines.begin(), keylines.end(), sort_lines_by_response());
+//        keylines.resize(lsdNFeatures);
+//        for( int i=0; i<lsdNFeatures; i++)
+//            keylines[i].class_id = i;
+//    }
+//    if(keylines2.size()>lsdNFeatures)
+//    {
+//        sort(keylines2.begin(), keylines2.end(), sort_lines_by_response());
+//        keylines2.resize(lsdNFeatures);
+//        for(int i=0; i<lsdNFeatures; i++)
+//            keylines2[i].class_id = i;
+//    }
     cout<<"lbd describle"<<endl;
     lbd->compute(img, keylines, mLdesc);
     lbd->compute(image2,keylines2,mLdesc2);//计算特征线段的描述子
@@ -94,7 +95,7 @@ void ExtractLineSegment(const Mat &img, const Mat &image2, vector<KeyLine> &keyl
         const DMatch& bestMatch = lmatches[i][0];
         const DMatch& betterMatch = lmatches[i][1];
         float  distanceRatio = bestMatch.distance / betterMatch.distance;
-        if (distanceRatio < 0.75)
+        if (distanceRatio < 0.5 && bestMatch.distance < 60)
             matches.push_back(bestMatch);
     }
 
