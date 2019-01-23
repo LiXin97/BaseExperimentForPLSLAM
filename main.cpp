@@ -11,6 +11,8 @@
 #include <opencv2/features2d/features2d.hpp>
 #include <iostream>
 
+#include "tictoc.hpp"
+
 using namespace cv;
 using namespace std;
 using namespace cv::line_descriptor;
@@ -27,6 +29,7 @@ struct sort_lines_by_response
     }
 };
 void ExtractLineSegment(const Mat &img, const Mat &image2, vector<KeyLine> &keylines,vector<KeyLine> &keylines2);
+void ExtractORB(const Mat &img, const Mat &image2, vector<KeyPoint> &KeyPoints,vector<KeyPoint> &KeyPoints2);
 int main(int argc, char**argv)
 {
     if(argc != 3)
@@ -43,16 +46,27 @@ int main(int argc, char**argv)
 //    imshow("ima1",image1);
 //    imshow("ima2",image2);
 //    waitKey(0);
-    if(image1.data==NULL)
+    if(!image1.data || !image2.data)
     {
         cout<<"the path is wrong"<<endl;
     }
 
+    cv::resize(image1,image1,Size(640,480));
+    cv::resize(image2,image2,Size(640,480));
+
+
     vector<KeyLine> keylines,keylines2;
 
 
+    TicToc time;
     ExtractLineSegment(image1,image2,keylines,keylines2);
+    std::cout << "line cost time :" << time.toc() << std::endl;
 
+    vector<KeyPoint> KeyPoints;
+    vector<KeyPoint> KeyPoints2;
+    time.tic();
+    ExtractORB(image1, image2, KeyPoints, KeyPoints2);
+    std::cout << "ORB cost time :" << time.toc() << std::endl;
     return 0;
 
 }
@@ -65,9 +79,9 @@ void ExtractLineSegment(const Mat &img, const Mat &image2, vector<KeyLine> &keyl
     Ptr<BinaryDescriptor> lbd = BinaryDescriptor::createBinaryDescriptor();
     Ptr<line_descriptor::LSDDetector> lsd = line_descriptor::LSDDetector::createLSDDetector();
 
-    cout<<"extract lsd line segments"<<endl;
-    lsd->detect(img, keylines, 1.2,1);
-    lsd->detect(image2,keylines2,1.2,1);
+//    cout<<"extract lsd line segments"<<endl;
+    lsd->detect(img, keylines, 5,1);
+    lsd->detect(image2,keylines2,5,1);
 //    int lsdNFeatures = 1000;
 //    cout<<"filter lines"<<endl;
 //    if(keylines.size()>lsdNFeatures)
@@ -84,19 +98,17 @@ void ExtractLineSegment(const Mat &img, const Mat &image2, vector<KeyLine> &keyl
 //        for(int i=0; i<lsdNFeatures; i++)
 //            keylines2[i].class_id = i;
 //    }
-    cout<<"lbd describle"<<endl;
+//    cout<<"lbd describle"<<endl;
     lbd->compute(img, keylines, mLdesc);
     lbd->compute(image2,keylines2,mLdesc2);//计算特征线段的描述子
     BFMatcher* bfm = new BFMatcher(NORM_HAMMING, false);
     bfm->knnMatch(mLdesc, mLdesc2, lmatches, 2);
     vector<DMatch> matches;
-    for(size_t i=0;i<lmatches.size();i++)
-    {
-        const DMatch& bestMatch = lmatches[i][0];
-        const DMatch& betterMatch = lmatches[i][1];
-        float  distanceRatio = bestMatch.distance / betterMatch.distance;
-        if (distanceRatio < 0.5 && bestMatch.distance < 60)
-            matches.push_back(bestMatch);
+
+    for(auto &i:lmatches){
+        double distanceRatio = i[0].distance/i[1].distance;
+        if(distanceRatio < 0.5 && i[0].distance < 50)
+            matches.push_back(i[0]);
     }
 
     cv::Mat outImg;
@@ -104,8 +116,43 @@ void ExtractLineSegment(const Mat &img, const Mat &image2, vector<KeyLine> &keyl
     drawLineMatches( img, keylines, image2, keylines2, matches, outImg, Scalar::all( -1 ), Scalar::all( -1 ), mask,
                      DrawLinesMatchesFlags::DEFAULT );
 
+    std::cout << "line match size :" << matches.size() << std::endl;
 //    imshow( "Matches", outImg );
     cv::imwrite("Matched.jpg",outImg);
-    waitKey();
+}
 
+void ExtractORB(const Mat &img, const Mat &image2, vector<KeyPoint> &KeyPoints,vector<KeyPoint> &KeyPoints2)
+{
+    Mat desc,desc2;
+
+    vector<vector<DMatch>> matches;
+
+    Ptr<FeatureDetector> orb = ORB::create(2000, 1.2, 8);
+    Ptr<DescriptorExtractor> orb_des = ORB::create(2000, 1.2, 8);
+    Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("BruteForce-Hamming");
+
+
+    orb->detect(img, KeyPoints);
+    orb->detect(image2, KeyPoints2);
+
+
+    orb_des->compute(img, KeyPoints, desc);
+    orb_des->compute(image2, KeyPoints2, desc2);
+
+    matcher->knnMatch(desc, desc2, matches,2);
+
+    vector<DMatch> matches_perfect;
+    for(auto &m:matches){
+        double p = m[0].distance/m[1].distance;
+        if(p < 0.5 && m[0].distance<50){
+            matches_perfect.push_back(m[0]);
+        }
+    }
+
+    cv::Mat outImg;
+    drawMatches(img, KeyPoints, image2, KeyPoints2, matches_perfect, outImg);
+
+    std::cout << "orb match size :" << matches.size() << std::endl;
+//    imshow( "Matches", outImg );
+    cv::imwrite("Matched_ORB.jpg",outImg);
 }
